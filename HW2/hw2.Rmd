@@ -1,0 +1,582 @@
+---
+title: "HW2 Daily sport"
+author: "Group 12: Piero Fronte, Laura Giuliano and Alba Puy Tapia"
+output: html_document
+---
+# 1
+\section{Introduction}
+
+Defining:
+\[ \chi = ( X_1, ... , X_n ) \text{ the set of attributes of our dataset} \]
+\[ E = (x_1, ... , x_n )  \text{ example E defined as a n-tuple of attributes values} \]
+\[  Y \epsilon \{ 0, 1 \} \text{ set of possible class}\]
+
+The simple idea of classification is to build a classifier, any general function, that once analyzed the set attributes values coming from an example E, assign a class $Y_i$ to the example.
+
+Analitically:
+\[  f : \chi \rightarrow \{0,1\} \text{ with f any general function that represent a classifier}\]
+
+\section{Bayes Rule}
+
+What we want to use is essentialy use the Bayes Rule (that essentially give us as a result a probability) to build a classfier. We proceed in as follow:
+
+\[ p(y|E) = \frac{p(E|y)p(y)}{p(E)} \text{ }\epsilon [0,1] \]
+
+We exploit then the Bayes rule written before to build the two probability p(1|E) and p(0|E).
+We are ready now to define the our first Bayesian Classiefier:
+
+\[f_{bayes}(E) = \frac{p(1|E)}{p(0|E)} = \frac{\frac{p(E|1)p(1)}{p(E)}}{\frac{p(E|0)p(0)}{p(E)}} = \frac{p(E|1) p(1)}{p(E|0) p(0)} 
+\begin{cases} 
+\ge 1 \text{ we are classifying E as 1} \\
+< 1  \text{ we are classifying E as 0} \\
+\end{cases}\]
+
+\section{Naive Bayes}
+
+Assuming that now all the attributes are independent each other we can simplify the term p(E|y) written previously as follow:
+\[ p(E|y) = \prod_{i=1}^n p(x_i|y) \]
+This new term helps us to rewrite the classification rule in an straighforward way:
+\[ f_{bayes} = \frac{p(1)}{p(0)} \prod_{i=1}^n \frac{p(x_i|1)}{p(x_i|0)} = f_{\text{naive bayes}}\]
+
+Why Naive?
+If the attributes does not depend on each other then the probability of seeing them together is just the product of their probabilities. The only kind of dependency present is between class and attributes.
+We say then the ATTRIBUTES ARE CONDITIONALLY INDEPENDENT GIVEN THE CLASS; and actually this is a necessary condition to talk about Naive Bayes.
+Ok but let's be honest.. nowaday is very rare to find any dataset where the attributes does not present any kind of dependency among them.
+Despite this, if we just ignore the condition and try to apply Naive Bayesian Classifier to any dataset to perform classification task we get very good results! (Sometimes even better than complicated model). So why even if we are apparently violating the contidionally independence clause we are still able to apply and get good results from it?
+
+For H. Zhang this is not related to the possible dependencies among attributes per se, but related to the distribution of the dependencies among all the attributes, this is what actually affects the classification. When we talk about affection of the classification by the underlying dependencies of the attributes we are saying that sometimes dependencies lead the task to misclassification (we tent to predict more 1's or 0's than the normal, it depends on the relations attribute-attribute and attribute-class.
+
+Up to this point a couple of questions may come out..
+
+- Since some dependencies can push classification towards 1's and other push it towards 0's is it possible that these opposite influences in classification simply cancel them out? (if present inside the dataset in equal measure)
+- Once we have defined dependencies attribute-attribute and attribute-class is there any way to quantify/measure this relationship?
+
+Let's dig a bit more down..
+
+\section{Local dependence derivative}
+
+We are going to introduce the term Local depencence derivative of an attribute, a measure of influence of the depencencies of this specific attribute in classification task.
+
+This term, analitically is defined as follow:
+\[ dd_1(x_i|dep(x_i)) = \frac{ p(x|dep(x_i), y = 1)}{p(x|y=1)}\]
+\[ dd_0(x_i|dep(x_i)) = \frac{ p(x|dep(x_i), y = 0)}{p(x|y=0)}\]
+
+- $dd_1(x_i|dep(x_i)) \rightarrow$ measure the influence of x's local independence in classification
+- $p(x|dep(x_i), y) \rightarrow$ conditional probability of attribute givens class and parents
+- $p(x|y) \rightarrow$ conditional probability of attribute without parents
+
+If we consider then just the ration between these to quantities we get:
+\[ ddr(x_i) = \frac{dd^1(x_i)|dep(x_i)}{dd^0(x_i)|dep(x_i)}
+\begin{cases} 
+=1 \begin{cases} \text{- x has no parents}\\
+				 \text{- local depencency of x is evenly distributed}\\
+                 \text{- dependence does affect classification}
+    \end{cases}\\
+>1 \text{ local dependence of attribute } x_i \text{ in class 1 is stonger} \\
+<1 \text{ local dependence of attribute } x_i \text{ in class 0 is stonger} \\
+\end{cases}\]
+
+Once defined the ratio we conclude with the relation:
+\[ f_{bayes}(E) = f_{\text{naive bayes}}(E)\prod_{i=1}^n ddr(x_i)\]
+
+In case of $\prod_{i=1}^n ddr(x_i) = DF(E) = 1$ a simple bayesian classifier behaves exactly as naive bayes classifier. Even if the dependence factor DF is around 1 we are still close to the optimality and we can still rely on a good performance.
+
+Notice that this is valid for classification, where in some circumstances it was proved that NB works even better than other classification model like Decision Tree, K-Nearest Neighbors, Logistic Regression. This may depends also on the zero-one loss function used in classification that ensure those good performance.
+
+\[ L(\hat{y}, y) = I(\hat{y} \neq y)\]
+
+This holds because it doesn't matter what proability comes out from the bayes classifier p(y|E) the only important thing is that the class assigned by the classifier and the true class are equal. If for example y=1 we can get whatever probability coming from p(y|E), from 0.5 to 1, to get a correct classification ($\hat{y}=1$). This good performance breaks down when instead we look at the $L_2$ score; in that case the low precision of Naive Bayes comes out.
+
+PROS: 
+
+- It is easy and fast to predict a class of test data set, given the few calculation required.
+- It also performs well in multi-class predictions.
+- If the assumption of independence holds, it performs better than other models like logistic regression.
+- It perform well in case of categorical input variables compared to numerical variables.If numerical, normal distribution is assumed
+- It is really fast so you can have a real time prediction.
+
+CONS:
+
+- If the categorical variable does not appear in the data set it will give it probability 0 and it will be unable to make a prediction. It is called zero frequency and it can be avoid by adding 1 more observation.
+- It assume independence, something that is really difficult to have in real data.
+\href{https://m.youtube.com/watch?v=CPqOCI0ahss&feature=youtu.be}{\textcolor{blue}{\underline{First link: video}}}.
+
+
+# 2
+
+
+```{r echo = T, warning=F , include=F}
+### Required libraries
+library(scatterplot3d)
+library(caret)
+library(plotly)
+library(MASS)
+library(klaR)
+library(DAAG)
+library(e1071)
+library(C50)
+library(nnet)
+library(randomForest)
+```
+
+### Setting the seed
+
+```{r seed}
+set.seed(123)
+```
+
+
+### Importing data
+```{r importing data}
+load("daily-sport.RData")
+#str(dailysport)
+#summary(dailysport)
+```
+
+### 4 activities: ( cross trainer,jumping,stepper, walking,)
+```{r}
+table(dailysport$id)
+```
+
+
+### Creating the small dataset
+In order to create our small data set we choose as activities stepper and jumping. And as sensors the torso Magnetometers.
+
+```{r small dataset}
+ds=subset(dailysport,subset=(id=="stepper"|id=="jumping"),select=c(id,`T-xMag`,`T-yMag`,`T-zMag`))
+
+ds.small=droplevels(ds)
+
+```
+### Treating it as a 3D point cloud in the Euclidean space
+
+```{r 3d plot}
+colors <- c('#BF382A', '#0C4B8E')
+rs=sample(15000,500)
+colors <- colors[as.numeric(ds.small$id[rs])]
+scatterplot3d(ds.small[rs,2:4],pch=16,color=colors,
+              main="3D Scatter Plot torso magnetometers"
+              )
+legend("topleft", legend = levels(ds.small$id),
+      col = colors, pch = 16)
+
+```
+
+
+Looking at how the points are distributed, the clusters are well defined, we expect 0 error.
+
+
+
+### Train and test
+```{r test}
+#with sample function
+idxtrain= sample(15000,15000*0.7)
+train = ds.small[ idxtrain, ]
+test  = ds.small[-idxtrain, ]
+
+#with create data partition
+inTrain = createDataPartition(y = ds.small$id,p = .70,list = FALSE)
+train = ds.small[ inTrain, ]
+test  = ds.small[-inTrain, ]
+table(train$id)
+
+```
+
+
+### LDA: linear discriminant analysis
+```{r lda}
+lda.out=lda(id ~ .,data=train)
+```
+
+#### Prediction in train
+```{r predict train}
+pred.tr = predict(lda.out, newdata = train,type = "class" )
+predtab <- table(train$id, pred.tr$class ,dnn=c("Actual","Prediction"))
+predtab
+# Missclassification rate (train)
+mean(pred.tr$class != train$id)*100
+
+```
+
+We get 0 error in the train, but let's see what happen in the test:
+ 
+#### Predicting the test:
+```{r predict test}
+pred.te = predict(lda.out,newdata = test,type = "class" )
+cm_pred=confusionMatrix( pred.te$class,test$id)
+cm_pred
+#round(predtab_te[1,1] / colSums(predtab_te)[1] * 100)
+#round(predtab_te[2,2] / colSums(predtab_te)[1] * 100)
+
+mean(pred.te$class != test$id)*100
+
+
+
+
+```
+
+As we expected, 0 error and maximum accuracy and specificity. *Apple rocks!* as u! (...give us a 31...). If not, we want at least the tshirt to ask leonardi for the training camp!!maybe he will know this time!! wish us luck!
+
+### Naive Bayes
+
+Let's see how the implemented function in R of Naive Bayes works:
+
+```{r Naive Bayes}
+nb.out=naiveBayes(id ~ .,data=train,usekernel = TRUE)
+```
+
+```{r Naive Bayes predict train}
+pred.nb.tr=predict(nb.out, newdata = train)
+table(train$id,pred.nb.tr,dnn=c("Actual","Prediction"))
+mean(pred.nb.tr != train$id)*100
+
+```
+
+```{r r Naive Bayes predict test}
+pred.nb.te=predict(nb.out, 
+                     newdata = test)
+table(test$id,pred.nb.te)
+mean(pred.nb.te != test$id)*100
+
+```
+
+
+Naive Bayes works good!! 0 error.
+
+### Estimation of the 1-dimensional class-conditional densities
+
+```{r}
+prob_x_given_y=function(x,mu,sd){
+  res = 1
+  for (i in 1:length(x)){
+    res = res*dnorm(x[i],mu[i],sd[i])
+  }
+  return(res)}
+```
+
+```{r}
+prob_x_given_y=function(x,mu,sd){return(dnorm(x,mu,sd))}
+s= subset(train,subset=(id=="stepper"))
+mu_s=sapply(s[,2:4],mean,na.rm=T)
+    
+sd_s=sapply(s[,2:4],sd,na.rm=T)
+    
+w= subset(train,subset=(id=="jumping"))
+mu_w=sapply(w[,2:4],mean,na.rm=T)
+    
+sd_w=sapply(w[,2:4],sd,na.rm=T)
+    
+p_ys= dim(s)[1]/(dim(w)[1]+dim(s)[1])
+p_yw=1-p_ys
+my_col = c("darkgoldenrod2", "pink3", "yellowgreen")
+par(mfrow=c(3,2)) 
+for (i in  2:4){
+  hist(s[,i], probability = TRUE, breaks = 20, col='#0C4B8E',main ="stepper" ,xlab = colnames(s)[i] )
+curve(dnorm(x,mu_s[i-1],sd_s[i-1]),from = min(s[,i]), to = max(s[,i]),add=T, col = my_col[i-1],lwd=2)
+hist(w[,i], probability = TRUE, breaks = 20, col='#BF382A' ,main="jumping",xlab = colnames(w)[i])
+curve(dnorm(x,mu_w[i-1],sd_w[i-1]),from = min(w[,i]), to = max(w[,i]),add=T, col = my_col[i-1],lwd=2)
+}
+
+
+```
+
+In this plot we approximate the distribution with a normal (parametric method), given that the independent variables are continue. On the columns we have the two classes while in the row the sensors.
+
+### Covariates with non parametric densities and 95% confidence interval bands
+
+```{r}
+s = subset(train, id=="stepper")
+j = subset(train, id=="jumping")
+
+
+for (i in  2:4){
+    
+    lower_x = min( min(s[,i]), min(j[,i]) )
+    upper_x = max( max(s[,i]), max(j[,i]) )
+    
+    upper_y = max( max(density(s[,i])$y), max(density(j[,i])$y) )
+    
+    true_density_stepper = density(s[,i])
+    true_density_jumping = density(j[,i])
+    
+    support_matrix_stepper = replicate(1000,{ #Sample with replacement, for the bootstrap from the
+                                              #original dataset and save the resample to x
+                                              x = sample(s[,i], replace=TRUE)                    
+                      
+                                              #Generate the density from the resampled dataset, and
+                                              #extract y coordinates to generate variablity bands
+                                              #for that particular x coordinate in the smooth curve
+                                              density(x, from = min(true_density_stepper$x), to = max(true_density_stepper$x))$y})
+    
+    support_matrix_jumping = replicate(1000,{ x = sample(j[,i], replace=TRUE)                    
+                                              density(x, from = min(true_density_jumping$x), to = max(true_density_jumping$x))$y})
+    
+    # upper lower bounds
+    ul_stepper = apply(support_matrix_stepper, 1, quantile, c(0.025,0.975) )
+    ul_jumping = apply(support_matrix_jumping, 1, quantile, c(0.025,0.975) )
+    
+    # upper bound stepper
+    plot(true_density_stepper$x, ul_stepper[1,], ylim= c(0,upper_y),
+         xlim = c(lower_x, upper_x), col = "dodgerblue", type = "l", lwd =0.7)
+    
+    # lower bound stepper
+    lines(true_density_stepper$x, ul_stepper[2,], col = "dodgerblue", type = "l", lwd =0.7)
+    
+    # true density stepper
+    lines(true_density_stepper$x, true_density_stepper$y, col = '#0C4B8E',lwd =1)
+    
+    # upper bound jumping
+    lines(true_density_jumping$x, ul_jumping[1,], col = "firebrick1", type = "l", lwd =0.7)
+    
+    # lower bound jumping
+    lines(true_density_jumping$x, ul_jumping[2,], col = "firebrick1", type = "l", lwd =0.7)
+    
+    # true density jumping
+    lines(true_density_jumping$x, true_density_jumping$y, col = '#BF382A',lwd =1)
+    
+    
+    #draw the actual polygon using the x coordinates from the original density
+    #and the y coordinates from calculated quantile variablity bands
+    polygon( c(true_density_stepper$x, rev(true_density_stepper$x)), c(ul_stepper[1,], rev(ul_stepper[2,])),col = rgb(0.19,0.15,0.84,.4), border=F)
+    polygon( c(true_density_jumping$x, rev(true_density_jumping$x)), c(ul_jumping[1,], rev(ul_jumping[2,])),col = rgb(0.84,0.19,0.15,.4), border=F)
+    
+    legend("topleft", legend = c("stepper", "jumping"), lty=c(1,1), col = c('#0C4B8E', '#BF382A'), lwd = c(2,2))}
+
+```
+
+In this plot we can compare the density distribution of the 3 covariates for the different classes(stepper and jumping). The y and the z are good for the classificacion because the area the two classes have in common is really little or 0 while in the x on, the classes have a considerably high interseption area (and it gives the oportunity of misclassify the classes)
+
+### Our own implementation of Naive Bayes 
+
+We define $x=(x_1,x_2,x_3)$ as our vector of independent variables and $Y$ as the dependent variable, being $n$ the number of samples we have. 
+
+$Y$ can have two different values: "jumping" and "stepper".
+
+Our goal is to define:
+\[P(Y=y|X)=\frac{P(X|Y=y)P(Y=y)}{P(X)}\]
+
+We will predict "jumping if:"
+\[P(Y="jumping"|X)=\frac{P(X|Y="jumping")P(Y="jumping")}{P(X)}>0.5\]
+
+And "stepper" otherwise.
+
+Since que are supposing independence between the $x_i$ we have:
+\[P(X|Y=y)=P(x_1,x_2,x_3|Y=y)=P(x_1|Y=y)P(x_2|Y=y)P(x_3|Y=y)\]
+
+Taking into consideration that the variables $x_i$ are continuous we will use as $P(x_i|Y=y) \sim N(\mu_{i,y},\sigma_{i,y})$, being $\mu_{i,y}$ the mean of the values that $x_i$ has and $\sigma_{i,y}$ the standard deviation, given that $Y=y$.
+
+Also, since there are just two activities to predict:
+\[P(X)=P(X|Y="jumping")*P(Y="jumping"")+P(X|Y="stepper")*P(Y="stepper")\]
+
+And, as the probability of each activity we define:
+\[P(Y=y)=\sum_{i=1}^n\frac{I(Y=y)}{n}\]
+
+This is the implementation of the algorithm descrived above:
+```{r}
+
+prob_x_given_y=function(x,mu,sd){
+  res = 1
+  for (i in 1:length(x)){
+    res = res*dnorm(x[i],mu[i],sd[i])
+  }
+    
+  return(res)
+}
+prob_x=function(x,mu_s,sd_s,mu_w,sd_w,p_ys,p_yw){
+  return(prob_x_given_y(x,mu_s,sd_s)*p_ys+prob_x_given_y(x,mu_w,sd_w)*p_yw)
+}
+
+naiveba= function(train){
+     
+   
+    pred=rep(NA,dim(train)[1])
+    probs=rep(NA,dim(train)[1])
+    for (i in 1:dim(train)[1]){
+      x=as.numeric(train[i,2:dim(train)[2]])
+      
+      probs[i]=(prob_x_given_y(x,mu_w,sd_w)*p_yw)/prob_x(x,mu_s,sd_s,mu_w,sd_w,p_ys,p_yw)
+     
+      if (probs[i]>0.5){pred[i]="jumping"}
+      else{pred[i]="stepper"}
+    }
+    
+    return(pred)
+  
+}
+
+```
+
+
+### Missclassification in the train
+
+```{r}
+
+nb = naiveba(train)
+table(nb,train$id)
+```
+
+
+```{r}
+nb_te=naiveba(test)
+table(test$id,nb_te)
+```
+We obtain the same results as the function implemented in R.
+
+### Non-parametric Naive Bayes
+```{r}
+# subsets of train we are working on
+s = subset(train, id=="stepper", select = -c(id))
+j = subset(train, id=="jumping", select = -c(id))
+
+## prior
+prior_s = nrow(s)/nrow(train)
+prior_j = nrow(j)/nrow(train)
+
+# empirical density transofrmed in a density estimate function
+
+# density estimate function for stepper
+density_sx = approxfun(density(s$`T-xMag`))
+density_sy = approxfun(density(s$`T-yMag`)) 
+density_sz = approxfun(density(s$`T-zMag`))
+
+# density estimate function for jumping
+density_jx = approxfun(density(j$`T-xMag`))
+density_jy = approxfun(density(j$`T-yMag`))
+density_jz = approxfun(density(j$`T-zMag`))
+
+# likelihood of the data given "stepper" class
+line_likelihood_step  = function(x){
+    res = density_sx(x[1])*density_sy(x[2])*density_sz(x[3])
+    # Since the density are defined in different intervals (as seen before) - the intersections between "s$T-yMAg"-"j$T-yMag" 
+    # and "s$T-zMag"-"j$T-zMag" respectively are (almost) zero - it is possible that the product above gives as result "NA".
+    # If this happens is just because we are evaluating a point of "jumping" class set with a density estimate function of "stepper" class.
+    # For this reaason if this case happens we set the probability directly to 0.
+    if (is.na(res)){
+        return(0)
+    }
+    else{return(res)}
+    }
+
+line_likelihood_jump  = function(x){
+    res = density_jx(x[1])*density_jy(x[2])*density_jz(x[3])
+    # Same case as before but with inverted classes
+    if (is.na(res)){
+        return(0)
+    }
+    else{return(res)}
+}
+
+# probability of the event X
+prob_event = function(x){
+    (line_likelihood_jump(x)*prior_j)+(line_likelihood_step(x)*prior_s)
+}
+
+naiveba_nonpar= function(train){
+    
+    # support structures
+    pred=rep(NA, nrow(train))
+    probs=rep(NA, nrow(train))
+    
+    for (i in 1:nrow(train)){
+        # row event X
+        x=as.numeric(train[i,2:ncol(train)])
+        # evaluating the probability
+        probs[i] = (line_likelihood_step(x)*prior_j)/prob_event(x)
+        if(is.na(probs[i])){probs[i]=0}
+        
+        # naive bayes condition
+        if (probs[i]>0.5){pred[i]="stepper"}
+        else{pred[i]="jumping"}
+        
+    }
+    
+    return(pred)}
+
+
+```
+
+
+Misclassification of Non-parametric Naive Bayes in train set
+```{r}
+np_nb = naiveba_nonpar(train)
+table(np_nb, train$id)
+```
+
+Misclassification of Non-parametric Naive Bayes in test set
+```{r}
+np_nb = naiveba_nonpar(test)
+table(np_nb, test$id)
+```
+
+#3
+
+Let's check for the complete dataset
+
+### Train and test of the complete dataset
+
+```{r}
+inTrain_all = createDataPartition(y = dailysport$id,p = .70,list = FALSE)
+train_all = dailysport[ inTrain_all, ]
+test_all  = dailysport[-inTrain_all, ]
+table(train_all$id)
+
+```
+
+### Boosting
+
+We can see the importance of each sersors (aka attribute usage).
+The next list says the importance of each variable (that is why, using the best one in the previous exercise we obtained zero error):
+```{r b boosting}
+C5boost = C5.0(id ~ ., data = train_all, trials = 10 )
+head(C5imp(C5boost))
+```
+
+The other torso magnetometers are useless since they are not important at all. Apple should only focus on the first 3.
+
+```{r}
+pred_b=predict(C5boost, newdata = test_all)
+confusionMatrix(pred_b ,test_all$id)
+round( mean( pred_b != test_all$id)*100, 3)
+```
+
+Predicting 4 variables instead of just two we obtain, again, 0 error.
+
+### Random Forest
+
+```{r}
+
+rf = randomForest(x=train_all[,2:46],y=train_all$id,na.action = na.omit,ntree=14)
+rf
+
+rf.imp = importance(rf)
+rf.imp = rf.imp[  order(rf.imp, decreasing = T),   ]
+head(rf.imp)
+
+```
+
+From the random forest model we get different importance values for the variables, but we can say for sure that apple should focus only on the Magnetometer sensors in different locations.
+Random forest gives a little bit of error, but we still have a good result.
+
+
+```{r}
+pred_rf_te=predict(rf,test_all)
+table(pred_rf_te,test_all$id)
+```
+
+### Multiclass Logistic
+
+```{r multiclass logistic}
+ml.out = multinom(id ~ ., data = train_all)
+#summary(ml.out)
+pred_ml_tr = predict(ml.out, train_all[,-1])
+table(pred_ml_tr,train_all$id)
+mean(pred_ml_tr !=  train_all$id)*100
+
+pred_ml_te = predict(ml.out, test_all[,-1])
+table(pred_ml_te,test_all$id)
+mean(pred_ml_te !=  test_all$id)*100
+
+
+```
+
+Always zero error!
