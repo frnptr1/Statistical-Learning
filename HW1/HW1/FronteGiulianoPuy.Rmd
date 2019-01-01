@@ -1,0 +1,320 @@
+---
+title: "HW1: Track me if you can..."
+author: 'Group 14: Pietro Fronte, Laura Giuliano and Alba Puy Tapia'
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r LIBRARIES+DATA, echo=T, include=FALSE }
+#The libraries required are:
+require(ggmap)
+require(pracma)
+require(MASS)
+require(Rvcg)
+require(rgl)
+require(misc3d)
+require(plotly)
+require(RColorBrewer)
+require(dplyr)
+require(MeanShift)
+require(meanShiftR)
+require(sparr)
+require(hdrcde)
+require(doParallel)
+require(foreach)
+require(iterators)
+require(knitr)
+
+cores=detectCores()-1 #in order to use the pc while we run the code
+registerDoParallel(cores)
+load("trackme.RData")
+```
+
+# Part 1
+
+### Plotting the points of the sixty run: 
+
+```{r PART1 PROF, warning = FALSE, error=FALSE, results='asis'}
+# Map boundaries
+myLocation <- c(min(runtrack$lon, na.rm = T),
+min(runtrack$lat, na.rm = T),
+max(runtrack$lon, na.rm = T),
+max(runtrack$lat, na.rm = T))
+# Get the map from Google (default)
+myMapInD <- get_map(location = myLocation, maptype = "roadmap", zoom = 13)
+# Plot gps coordinates (without elevation data)
+gp <- ggmap(myMapInD) + geom_point(data = runtrack,
+aes(x = lon, y = lat),
+size = .5, colour = I("red"), alpha = .01)
+# Take a look
+print(gp)
+```
+
+
+# Density estimation
+
+## Bandwidth estimation
+
+
+### First of all we have to choose the parameter h.
+### In order to do it we use the package ks, applying different methods.
+
+```{r BANDWIDTH, warning=FALSE}
+# x is a dataframe containing only the relevant information needed for this plot (latitude-longitude values)
+x = subset(runtrack,select=c(lon,lat))
+
+#finding a good value for the bandwidth h:
+h1 = sqrt(diag(ks::Hpi(x,deriv.order=1))) # Plug-in bandwidth estimator
+h2 = sqrt(diag(ks::Hlscv(x, deriv.order=1))) # Least Square cross validation
+```
+
+### Having tried with both h, we find out that h2 was a better choise because using h1 we are in a undersmoothing situation.
+
+
+
+### Instead of just plotting the points in the map, we can use R to create a density surface of the points, and show it.
+
+
+```{r 2D DENSITY ESTIMATE WITH CONTOURPLOT, warning=F}
+#estimate
+density_estimate=kde2d(runtrack$lon, runtrack$lat,h=h2, n = 60, lims = c(range(runtrack$lon), range(runtrack$lat)))
+
+#visualize
+myMapInD <- get_map(location = myLocation, maptype = "roadmap", zoom = 13)
+
+gg=ggmap(myMapInD)+
+  geom_density2d(data = runtrack, aes(x = lon, y = lat)) +  #display the results with contours.
+  stat_density2d(data = runtrack, aes(x = lon, y = lat, fill = ..level.., alpha=..level..),size = 0.02, bins = 16, geom = 'polygon')+
+     scale_fill_gradient(low = "green", high = "red") +
+    scale_alpha(range = c(0.2, 0.5), guide = FALSE)+
+  ggtitle("Level map")
+print(gg)
+ 
+```
+
+
+### As we can see, the spots colored in red are the ones where you run the most, being the green ones the less visited.
+
+
+### In the following density scatterplot we paint each dot with a color based on the density it has. The more red it is , the bigger density it has.
+
+
+```{r 2D DENSITY SCATTERPLOT}
+x=subset(runtrack,select=c(lon,lat))
+dcols <- densCols(x,colramp = colorRampPalette(brewer.pal(6, "YlOrRd")))
+graphics::plot(x, col = dcols, pch = 20, main = "Color density Scatterplot")
+```
+
+
+
+### Plotting a 3d rapresentation of the density:
+
+
+```{r PLOT OF DENSITY}
+p <- plot_ly(x = density_estimate$x, y = density_estimate$y, z = density_estimate$z) %>% add_surface()
+p
+```
+
+
+### We know from this plot that the modes are in the yellow regions. 
+
+
+
+### With the following function we plot the highest density regions in two dimension and we get the mode, which is the point with higest density (the black point).
+
+```{r HIGH DENSITY REGION 2D}
+# high density region information
+hdrinfo <- hdr.2d(runtrack$lon,runtrack$lat,den=density_estimate, h = h2)
+
+#hdr plot
+plot.hdr2d(hdrinfo,shaded = TRUE, show.points = FALSE, xlab = "Lon", ylab = "Lat", main = "Plot HDR")
+```
+
+
+
+### So, if we had to make a guess about where you live or where you start running it would be close to this point:
+
+```{r HDR MODE COORDINATES}
+paste0("Longitude: ", round(hdrinfo$mode[1],3), "  Latitude: ", round(hdrinfo$mode[2],3))
+```
+
+
+
+# *Meanshift:*
+
+
+### Mean shift clustering 
+### The mean shift algorithm seeks modes of a given set of points and it does:
+
+### 1. Choose kernel and two bandwidths.
+### 2. For each point:
+##### a) Center a window on that point.
+##### b) Compute the mean of the data in the search window.
+##### c) Center the search window at the new mean location.
+##### d) Repeat (b,c) until convergence.
+### 3. Assign points that lead to nearby modes to the same cluster. 
+
+### The number of neighbors to look at is set to 5000, which is arbitrarily picked. It is a balanced way to get a reasonably running time of the algorithm without imploding the Rstudio session. The epsilonCluster value refears to the minimum distance between the distinct clusters. Again, the value choosen seems to be a balanced compromise to get some interesting clusters. Since we are dealing in a very (numerically speaking) restricted area, decreasing the number of epsCluster make the mean shift algorithm more and more sensitive, in fact increasing the value from e-7 to e-8 the algorithm becames more and more sensitive building an exponentially higher number of clusters.
+### We choose the Approximate Nearest Neighbors Search algorithm because its implementation is computationally faster than the mean shift algorithm. Since we are dealing with a (relatively) medium size dataset, the meanshift algorithm requires too much time to run, even if we parallelize.
+
+
+```{r MEANSHIFT}
+X=as.matrix(x)
+ms =meanShift(X,nNeighbors = 5000,bandwidth = h2, epsilonCluster = 1e-7, kernelType = "NORMAL")
+table(ms$assignment)
+```
+
+
+```{r PLOT THE DATAPOINTS CLUSTERS FOUND WITH MEAN SHIFT}
+plot(runtrack$lon, runtrack$lat, col = ms$assignment, cex = 0.2,xlab = "Lon",ylab="Lat")
+legend("bottom",legend=unique(ms$assignment),col=1:length(ms$assignment),pch=1,lwd=2,xpd = TRUE, horiz = TRUE, inset = c(0.2,-0.2))
+```
+
+
+
+
+
+# Part 2
+
+### We start building the vector "dist" that will host the distances between all the curves. 
+
+
+```{r COLLECTIONG DISTANCE SNAIL S PACE}
+dist = rep(NA,1800)
+c = 0
+for(i in 1:60){
+    for (j in i:60) {
+        dist[c] = hausdorff_dist(
+                                P = as.matrix(subset(runtrack, id == paste("run", i, sep ="_" ), select = -c(ele, time, id))), 
+                                Q = as.matrix(subset(runtrack, id == paste("run", j, sep ="_" ), select = -c(ele, time, id)))) 
+        c=c+1
+    }
+}
+```
+
+### We use the 25% quantile of the "dist" vector to build the epsilon thresold.
+
+### With 2 "for" loops we are going to compute the hausdorff distance (from pracma package) between all the curves and an "if" condition inside them that establish the "acceptance region" of the distance. If d(curve_1, curve_2) is less than the threshold then we insert 1/60 in the matrix "matr", leaving 0 otherwise.
+```{r BUILDING HAUSDORFF DISTANCES MATRIX}
+# setting epsilon as the 0.25 quantile of the distances found
+eps = quantile(dist, probs = 0.25)
+
+matr = foreach ( i = 1:60, .packages = "pracma", .combine = cbind) %dopar% {
+        vett = rep(0, 60)
+        for ( j in 1:60){ 
+          d = hausdorff_dist(
+                              P = as.matrix(subset(runtrack, id == paste("run", i, sep ="_" ), select = -c(ele, time, id))), 
+                              Q = as.matrix(subset(runtrack, id == paste("run", j, sep ="_" ), select = -c(ele, time, id))))
+          if(d<eps){
+            vett[j] = 1/60
+          }
+        }
+        vett
+}
+
+```
+
+### From the matrix "matr" we build the $\hat{q_e}(\gamma)$ which is a summatory of the values per each column. Once evaluated the density we assign it to each point that belongs to that curve. 
+```{r ASSIGNING DENSITY TO EACH POINT}
+
+cdensity = colSums(matr, na.rm = TRUE) # density vector
+
+for(i in 1:60){
+  for(j in 1:length(runtrack$id)){
+    if(runtrack$id[j]==paste("run", i, sep ="_" )){
+      runtrack$cdensity[j] = cdensity[i]
+    }
+  }
+}
+
+```
+
+### We use here the kde3d function from the misc3d package to build a 3d kde adding the density computed before in the z-axis.
+```{r BUIKDING THE 3D KERNEL DENSITY}
+# 3d kernel density
+kd3 = misc3d::kde3d(x = runtrack$lon, y = runtrack$lat, runtrack$cdensity)
+```
+
+### 3D plot of each path weighted based on its own local density:
+```{r PLOTTING THE PATHS BASED ON THEIR LOCAL DENSITIES}
+# 3d plot of paths
+pl = plot_ly(runtrack, x = ~lon, y = ~lat, z = ~cdensity,
+        marker = list(color = ~cdensity, colorscale = c('#FFE1A1', '#683531'), showscale = TRUE,size=0.5)) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Longitude'),
+                     yaxis = list(title = 'Latitude'),
+                     zaxis = list(title = 'Density')),
+         annotations = list(
+           x = 1.13,
+           y = 1.05,
+           text = 'Density per path',
+           xref = 'paper',
+           yref = 'paper',
+           showarrow = FALSE
+         ))
+pl
+```
+
+### Retrieving the top 5 and bottom 5 paths based on the curve density:
+```{r TOP 5 TRACKS AND BOTTOM 5 TRACKS }
+runsession = runtrack[,c('id','cdensity')]
+runsession = distinct(runsession) # dataframe with id_run and the corresponding density
+top5=top_n(runsession, 5, cdensity)
+kable(top5[order(top5$cdensity, decreasing =T),], row.names = FALSE,caption="Top 5")
+bottom5=top_n(runsession, 5,- cdensity)
+kable(bottom5[order(bottom5$cdensity, decreasing =F),], row.names = FALSE,caption="Bottom 5")
+```
+
+### We first evaluate the univariate bandwidth with the same algorithm used before (least square cross validation from ks package) and we cluster the curves based on their local densities.
+```{r MEAN SHIFT FOR THE CURVES BASED ON THE DENSITIES FOUND, warning=FALSE}
+hcurve = sqrt(ks::hlscv(runsession$cdensity))
+mcurves=meanShift(runsession$cdensity,nNeighbors = 60,bandwidth = hcurve, epsilonCluster = 1e-1, kernelType = "NORMAL")
+table(mcurves$assignment) # clusters and number of curves belonging to it 
+```
+
+### As before we assign the curve cluster to each datapoint 
+```{r ASSIGNING CLUSTER TO EACH POINT/CURVE TO THEN PLOT THEM}
+for (i in 1:60){
+  for(j in 1:length(runtrack$id)){
+    if(runtrack$id[j]==paste("run", i, sep ="_" )){
+      runtrack$clusterc[j] = mcurves$assignment[i]
+    }
+  }
+}
+```
+
+
+### Plotting of the clustered running sessions:
+```{r PLOTTING THE CLUSTER FOUND WITH MEAN SHIFT ALGORITHM}
+# 3d plot of paths
+
+axy <- list(
+  nticks = length(table(mcurves$assignment)),
+  range = c(1, length(table(mcurves$assignment))),title="Cluster"
+)
+
+pl = plot_ly(runtrack, x = ~lon, y = ~lat, z = ~clusterc, 
+        marker = list(color = ~clusterc, colorscale = "Viridis",size=1)) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Longitude'),
+                     yaxis = list(title="Latitude"),
+                     zaxis = axy),
+         annotations = list(
+           x = 1.13,
+           y = 1.05,
+           text = 'Cluster',
+           xref = 'paper',
+           yref = 'paper',
+           showarrow = FALSE
+         )) 
+pl
+```
+
+
+
+### We can see that there are 6 clusters.
+
+
+
+
